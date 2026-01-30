@@ -1,768 +1,744 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Crusades: Interactive History</title>
-    <style>
-        /* ================================================================
-           MODERN THEME & TYPOGRAPHY
-           Clean, professional variables for a polished educational tool.
-           ================================================================
-        */
-        :root {
-            --bg-color: #f4f7f6;
-            --bg-dot: #e0e5ec;
-            
-            /* Palette: Deep Crimson, Regal Gold, Slate Blue */
-            --primary: #8a1c1c; 
-            --accent: #c59d08;
-            --secondary: #2c3e50;
-            --text-main: #2b2b2b;
-            --text-light: #666;
-            
-            --card-bg: rgba(255, 255, 255, 0.95);
-            --card-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            --card-border: 1px solid rgba(0,0,0,0.05);
-            
-            --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            --font-serif: "Georgia", "Times New Roman", serif; /* Used sparsely for headers */
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>The Crusades | Interactive Timeline</title>
+<style>
+    /* * --------------------------------------------------------------------------
+     * DESIGN SYSTEM: "Cupertino History"
+     * Minimalist, Typography-First, Fluid Animation
+     * --------------------------------------------------------------------------
+     */
+    :root {
+        --bg-body: #f5f5f7; /* Apple's signature light grey */
+        --bg-card: #ffffff;
+        --text-primary: #1d1d1f;
+        --text-secondary: #86868b;
+        --accent: #0071e3; /* System Blue */
+        --accent-danger: #ff3b30; /* System Red (for battles) */
+        --accent-gold: #ffcc00; /* System Yellow (for figures) */
+        --border-light: rgba(0,0,0,0.08);
+        --shadow-soft: 0 10px 30px rgba(0,0,0,0.04);
+        --shadow-hover: 0 20px 40px rgba(0,0,0,0.08);
+        --radius-l: 24px;
+        --radius-m: 16px;
+        --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        --ease-apple: cubic-bezier(0.25, 0.1, 0.25, 1); /* iOS slide feel */
+        --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
 
-        * { box-sizing: border-box; }
+    * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
 
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: var(--font-main);
-            background-color: var(--bg-color);
-            background-image: radial-gradient(var(--bg-dot) 1px, transparent 1px);
-            background-size: 20px 20px;
-            color: var(--text-main);
-            overflow: hidden; /* App handles scrolling */
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
+    body {
+        margin: 0;
+        padding: 0;
+        background-color: var(--bg-body);
+        font-family: var(--font-stack);
+        color: var(--text-primary);
+        overflow: hidden; /* We handle scroll via the app container */
+        height: 100vh;
+        width: 100vw;
+    }
 
-        /* HEADER UI */
-        header {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            z-index: 100;
-            background: var(--card-bg);
-            padding: 15px 25px;
-            border-radius: 12px;
-            box-shadow: var(--card-shadow);
-            border: var(--card-border);
-            backdrop-filter: blur(10px);
-            max-width: 350px;
-        }
+    /* --------------------------------------------------------------------------
+       UI: CONTROLS & HUD
+       -------------------------------------------------------------------------- */
+    
+    /* Fixed Timeline Strip (Glassmorphism) */
+    .hud-timeline {
+        position: fixed;
+        bottom: 30px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(255, 255, 255, 0.75);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        padding: 10px 10px;
+        border-radius: 100px;
+        display: flex;
+        gap: 8px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        z-index: 1000;
+        border: 1px solid rgba(255,255,255,0.4);
+        transition: transform 0.4s var(--ease-apple);
+    }
 
-        h1 {
-            margin: 0;
-            font-family: var(--font-serif);
-            color: var(--primary);
-            font-size: 1.5rem;
-            letter-spacing: -0.5px;
-        }
+    .timeline-dot {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.3s var(--ease-apple);
+        background: transparent;
+    }
 
-        p.subtitle {
-            margin: 5px 0 0 0;
-            font-size: 0.9rem;
-            color: var(--text-light);
-            line-height: 1.4;
-        }
+    .timeline-dot:hover { background: rgba(0,0,0,0.05); color: var(--text-primary); }
+    .timeline-dot.active { background: var(--text-primary); color: white; transform: scale(1.1); }
 
-        /* CANVAS AREA */
-        #viewport {
-            flex-grow: 1;
-            position: relative;
-            overflow: hidden;
-            cursor: grab;
-            width: 100%;
-            height: 100%;
-        }
+    /* Zoom Controls */
+    .hud-zoom {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        background: white;
+        padding: 8px;
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        box-shadow: var(--shadow-soft);
+        z-index: 1000;
+    }
 
-        #viewport:active { cursor: grabbing; }
+    .zoom-btn {
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: #f5f5f7;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: bold;
+        color: var(--text-primary);
+        transition: background 0.2s;
+    }
+    .zoom-btn:hover { background: #e0e0e0; }
 
-        #canvas {
-            position: absolute;
-            top: 0; left: 0;
-            transform-origin: 0 0;
-            width: 4000px; /* Large canvas for panning */
-            height: 3000px;
-        }
+    /* About Button */
+    .hud-about {
+        position: fixed;
+        top: 30px;
+        right: 30px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        cursor: pointer;
+        z-index: 1000;
+        opacity: 0.7;
+        transition: opacity 0.2s;
+    }
+    .hud-about:hover { opacity: 1; }
 
-        /* SVG CONNECTORS */
-        svg {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            pointer-events: none;
-            z-index: 0;
-        }
-        
-        path.connector {
-            fill: none;
-            stroke: #cbd5e0;
-            stroke-width: 2px;
-            transition: stroke 0.3s ease;
-        }
-        
-        path.connector.active {
-            stroke: var(--primary);
-            stroke-width: 3px;
-        }
+    /* --------------------------------------------------------------------------
+       SCENE: THE INFINITE CANVAS
+       -------------------------------------------------------------------------- */
+    #viewport {
+        width: 100%;
+        height: 100%;
+        overflow-y: scroll;
+        overflow-x: hidden;
+        perspective: 1000px;
+        scroll-behavior: smooth;
+    }
 
-        /* NODES */
-        .node {
-            position: absolute;
-            background: var(--card-bg);
-            padding: 12px 20px;
-            border-radius: 8px;
-            box-shadow: var(--card-shadow);
-            border: var(--card-border);
-            width: 220px;
-            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-            cursor: pointer;
-            z-index: 10;
-            border-left: 4px solid var(--secondary);
-        }
+    #content-container {
+        width: 100%;
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 120px 20px 200px 20px;
+        transform-origin: top center;
+        transition: transform 0.5s var(--ease-apple);
+    }
 
-        .node:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.12);
-        }
+    /* The "Stem" of the Mind Map */
+    .timeline-spine {
+        position: absolute;
+        left: 50%;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: linear-gradient(to bottom, transparent, var(--border-light) 10%, var(--border-light) 90%, transparent);
+        transform: translateX(-1px);
+        z-index: -1;
+    }
 
-        /* Node Types Styling */
-        .node.root {
-            border-left: 6px solid var(--primary);
-            width: 260px;
-        }
-        .node.root h3 { font-size: 1.3rem; color: var(--primary); }
+    /* --------------------------------------------------------------------------
+       COMPONENTS: NODES & CARDS
+       -------------------------------------------------------------------------- */
+    
+    .hero-header {
+        text-align: center;
+        margin-bottom: 120px;
+        opacity: 0;
+        animation: fadeUp 1s var(--ease-apple) forwards;
+    }
 
-        .node.person {
-            border-left: 4px solid var(--accent);
-        }
-        
-        .node.event {
-            border-left: 4px solid var(--secondary);
-        }
+    .hero-title {
+        font-size: 4rem;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        margin: 0;
+        background: linear-gradient(135deg, #1d1d1f 0%, #434344 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
 
-        .node.outcome {
-            border-left: 4px solid #27ae60; /* Green for legacy/outcome */
-            border-style: solid;
-        }
+    .hero-subtitle {
+        font-size: 1.5rem;
+        color: var(--text-secondary);
+        font-weight: 400;
+        margin-top: 10px;
+    }
 
-        .node h3 {
-            margin: 0 0 6px 0;
-            font-size: 1rem;
-            font-weight: 600;
-            color: var(--text-main);
-        }
+    /* Section Node */
+    .node-section {
+        position: relative;
+        margin-bottom: 100px;
+        opacity: 0;
+        transform: translateY(40px);
+        transition: all 0.8s var(--ease-apple);
+    }
+    .node-section.visible { opacity: 1; transform: translateY(0); }
 
-        .node p {
-            margin: 0;
-            font-size: 0.85rem;
-            color: var(--text-light);
-            line-height: 1.4;
-        }
+    /* The Main Card */
+    .card-main {
+        background: var(--bg-card);
+        border-radius: var(--radius-l);
+        box-shadow: var(--shadow-soft);
+        padding: 40px;
+        position: relative;
+        transition: all 0.4s var(--ease-apple);
+        cursor: default;
+        border: 1px solid white;
+    }
+    
+    .card-main:hover {
+        transform: scale(1.02);
+        box-shadow: var(--shadow-hover);
+    }
 
-        .toggle-icon {
-            position: absolute;
-            right: 15px;
-            top: 15px;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: #eee;
-            color: #666;
-            font-size: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            transition: transform 0.3s;
-        }
-        
-        .node.collapsed .toggle-icon { transform: rotate(-90deg); background: var(--primary); color: white; }
-        .node.expanded .toggle-icon { background: #eee; }
+    /* Typography inside Card */
+    .node-year {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 8px;
+        display: block;
+    }
 
-        /* TOOLTIP / INFO CARD */
-        #info-card {
-            position: fixed;
-            bottom: 100px;
-            right: 20px;
-            width: 300px;
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-            border: 1px solid rgba(0,0,0,0.05);
-            z-index: 500;
-            opacity: 0;
-            pointer-events: none;
-            transform: translateY(20px);
-            transition: all 0.3s ease;
-        }
+    .node-title {
+        font-size: 2rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        margin: 0 0 16px 0;
+    }
 
-        #info-card.visible {
-            opacity: 1;
-            pointer-events: auto;
-            transform: translateY(0);
-        }
+    .node-summary {
+        font-size: 1.1rem;
+        line-height: 1.6;
+        color: var(--text-secondary);
+        margin-bottom: 24px;
+        max-width: 90%;
+    }
 
-        #info-card h2 { margin: 0 0 10px 0; font-size: 1.2rem; color: var(--primary); font-family: var(--font-serif); }
-        #info-card p { margin: 0; font-size: 0.9rem; color: var(--text-light); line-height: 1.5; }
-        #info-card .tag { 
-            display: inline-block; 
-            background: #f0f0f0; 
-            padding: 4px 8px; 
-            border-radius: 4px; 
-            font-size: 0.75rem; 
-            margin-bottom: 10px; 
-            color: #555; font-weight: 600; text-transform: uppercase;
-        }
+    /* Interactive Figures (Badges) */
+    .figures-row {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 30px;
+    }
 
-        /* TIMELINE STRIP */
-        #timeline {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 70px;
-            background: white;
-            border-top: 1px solid #e0e0e0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 200;
-            box-shadow: 0 -5px 20px rgba(0,0,0,0.03);
-            overflow-x: auto;
-        }
+    .figure-badge {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: #f5f5f7;
+        padding: 8px 16px 8px 8px;
+        border-radius: 100px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: help;
+        position: relative;
+        transition: background 0.2s;
+    }
+    
+    .figure-badge:hover { background: #e8e8ed; }
 
-        .timeline-track {
-            display: flex;
-            padding: 0 40px;
-            position: relative;
-        }
-        
-        .timeline-point {
-            position: relative;
-            margin: 0 30px;
-            text-align: center;
-            cursor: pointer;
-            opacity: 0.6;
-            transition: opacity 0.2s;
-        }
-        
-        .timeline-point:hover { opacity: 1; }
+    .figure-avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--text-primary);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 700;
+    }
 
-        .timeline-point::before {
-            content: '';
-            display: block;
-            width: 10px; height: 10px;
-            background: var(--secondary);
-            border-radius: 50%;
-            margin: 0 auto 8px auto;
-        }
+    /* iOS-Style Tooltip */
+    .tooltip {
+        position: absolute;
+        bottom: 110%; /* Above the badge */
+        left: 50%;
+        transform: translateX(-50%) scale(0.9);
+        background: rgba(29, 29, 31, 0.95);
+        color: white;
+        padding: 12px 16px;
+        border-radius: 12px;
+        width: 220px;
+        font-size: 13px;
+        line-height: 1.4;
+        text-align: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: all 0.3s var(--ease-bounce);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        z-index: 100;
+    }
+    
+    .tooltip::after {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -6px;
+        border-width: 6px;
+        border-style: solid;
+        border-color: rgba(29, 29, 31, 0.95) transparent transparent transparent;
+    }
 
-        .timeline-point span {
-            display: block;
-            font-size: 0.75rem;
-            font-weight: bold;
-            color: var(--text-main);
-        }
-        
-        .timeline-point small {
-            font-size: 0.7rem;
-            color: var(--text-light);
-        }
+    .figure-badge:hover .tooltip {
+        opacity: 1;
+        transform: translateX(-50%) scale(1);
+    }
 
-        /* FOOTER / ABOUT */
-        #footer-info {
-            position: fixed;
-            bottom: 80px;
-            left: 20px;
-            font-size: 0.75rem;
-            color: #999;
-            z-index: 100;
-        }
-        
-        /* RESPONSIVE */
-        @media (max-width: 768px) {
-            header { width: 90%; left: 5%; }
-            #info-card { width: 90%; right: 5%; bottom: 80px; }
-            .timeline-point { margin: 0 15px; }
-        }
-    </style>
+    /* Collapsible Details */
+    .details-trigger {
+        background: none;
+        border: none;
+        padding: 0;
+        color: var(--accent);
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        outline: none;
+    }
+
+    .details-trigger svg {
+        transition: transform 0.3s;
+    }
+    .details-trigger.active svg { transform: rotate(180deg); }
+
+    .details-panel {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.6s cubic-bezier(0.5, 0, 0, 1);
+        margin-top: 0;
+    }
+
+    .details-content {
+        padding-top: 24px;
+        border-top: 1px solid var(--border-light);
+        margin-top: 24px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+    }
+
+    .detail-block h4 {
+        margin: 0 0 8px 0;
+        font-size: 12px;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        letter-spacing: 0.05em;
+    }
+    .detail-block p {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
+    /* Branch Lines (Visual Connectors) */
+    .connector-dot {
+        position: absolute;
+        left: 50%;
+        top: 50px;
+        width: 12px;
+        height: 12px;
+        background: white;
+        border: 3px solid var(--text-primary);
+        border-radius: 50%;
+        transform: translateX(-50%);
+        z-index: 2;
+    }
+
+    /* Legacy Section Style Override */
+    .node-section.legacy .card-main {
+        background: #1d1d1f;
+        color: white;
+    }
+    .node-section.legacy .node-title, 
+    .node-section.legacy .node-summary,
+    .node-section.legacy h4,
+    .node-section.legacy p {
+        color: rgba(255,255,255,0.9);
+    }
+    .node-section.legacy .node-year { color: var(--accent-gold); }
+
+    /* Footer */
+    footer {
+        text-align: center;
+        padding: 40px;
+        color: var(--text-secondary);
+        font-size: 12px;
+        border-top: 1px solid var(--border-light);
+        margin-top: 80px;
+    }
+
+    /* Animation Keyframes */
+    @keyframes fadeUp {
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 700px) {
+        .hero-title { font-size: 2.5rem; }
+        .details-content { grid-template-columns: 1fr; }
+        #content-container { padding: 80px 15px; }
+        .hud-timeline { width: 90%; justify-content: space-between; padding: 10px 20px; }
+        .timeline-dot { width: auto; height: auto; border-radius: 0; }
+    }
+
+</style>
 </head>
 <body>
 
-    <header>
-        <h1>The Crusades</h1>
-        <p class="subtitle">An interactive exploration of the religious wars (1095–1291). Click nodes to expand. Drag to pan.</p>
-    </header>
+    <div class="hud-about" onclick="toggleAbout()">About this Project</div>
+
+    <div class="hud-zoom">
+        <button class="zoom-btn" onclick="adjustZoom(0.1)">+</button>
+        <button class="zoom-btn" onclick="adjustZoom(-0.1)">-</button>
+        <button class="zoom-btn" onclick="resetZoom()">R</button>
+    </div>
+
+    <nav class="hud-timeline">
+        <div class="timeline-dot" onclick="scrollToId('hero')">Intro</div>
+        <div class="timeline-dot" onclick="scrollToId('first')">1095</div>
+        <div class="timeline-dot" onclick="scrollToId('second')">1147</div>
+        <div class="timeline-dot" onclick="scrollToId('third')">1189</div>
+        <div class="timeline-dot" onclick="scrollToId('fourth')">1202</div>
+        <div class="timeline-dot" onclick="scrollToId('legacy')">Legacy</div>
+    </nav>
 
     <div id="viewport">
-        <div id="canvas">
-            <svg id="svg-layer"></svg>
-            <div id="node-layer"></div>
+        <div id="content-container">
+            
+            <div class="timeline-spine"></div>
+
+            <header class="hero-header" id="hero">
+                <h1 class="hero-title">The Crusades.</h1>
+                <p class="hero-subtitle">Faith, War, and the Reshaping of History.</p>
+            </header>
+
+            <section class="node-section" id="first">
+                <div class="connector-dot"></div>
+                <article class="card-main">
+                    <span class="node-year">1096 – 1099</span>
+                    <h2 class="node-title">The First Crusade</h2>
+                    <p class="node-summary">Initiated by Pope Urban II's call at the Council of Clermont. A disparate band of princes and peasants marched across Europe to capture Jerusalem.</p>
+                    
+                    <div class="figures-row">
+                        <div class="figure-badge">
+                            <div class="figure-avatar" style="background:#8E1600">U</div>
+                            Urban II
+                            <div class="tooltip"><strong>Pope Urban II</strong><br>Initiated the movement with his sermon at Clermont, crying "Deus Vult" (God wills it).</div>
+                        </div>
+                        <div class="figure-badge">
+                            <div class="figure-avatar" style="background:#D4AF37; color:#000">G</div>
+                            Godfrey
+                            <div class="tooltip"><strong>Godfrey of Bouillon</strong><br>A Frankish knight who became the first ruler of the Kingdom of Jerusalem.</div>
+                        </div>
+                    </div>
+
+                    <button class="details-trigger" onclick="toggleDetails(this)">
+                        Explore Details 
+                        <svg width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 1L5 5L9 1"/></svg>
+                    </button>
+
+                    <div class="details-panel">
+                        <div class="details-content">
+                            <div class="detail-block">
+                                <h4>Outcome</h4>
+                                <p>Military Success. Jerusalem was captured in 1099, followed by a brutal massacre of its inhabitants. Establishment of the Crusader States (Outremer).</p>
+                            </div>
+                            <div class="detail-block">
+                                <h4>Key Battle: Antioch</h4>
+                                <p>A grueling 8-month siege (1097–98). Crusaders were nearly starved but prevailed after finding the "Holy Lance."</p>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            </section>
+
+            <section class="node-section" id="second">
+                <div class="connector-dot"></div>
+                <article class="card-main">
+                    <span class="node-year">1147 – 1149</span>
+                    <h2 class="node-title">The Second Crusade</h2>
+                    <p class="node-summary">Sparked by the fall of Edessa. It was the first crusade led by European kings, yet it ended in total disaster and retreat.</p>
+                    
+                    <div class="figures-row">
+                        <div class="figure-badge">
+                            <div class="figure-avatar" style="background:#0071e3">L</div>
+                            Louis VII
+                            <div class="tooltip"><strong>Louis VII</strong><br>King of France. His pious devotion often clashed with military practicality.</div>
+                        </div>
+                        <div class="figure-badge">
+                            <div class="figure-avatar" style="background:#555">B</div>
+                            Bernard
+                            <div class="tooltip"><strong>St. Bernard of Clairvaux</strong><br>The primary preacher who rallied Europe for the Second Crusade.</div>
+                        </div>
+                    </div>
+
+                    <button class="details-trigger" onclick="toggleDetails(this)">
+                        Explore Details 
+                        <svg width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 1L5 5L9 1"/></svg>
+                    </button>
+
+                    <div class="details-panel">
+                        <div class="details-content">
+                            <div class="detail-block">
+                                <h4>The Failure</h4>
+                                <p>Internal bickering between the French and Germans, combined with Turkish guerrilla tactics in Anatolia, decimated the armies.</p>
+                            </div>
+                            <div class="detail-block">
+                                <h4>Siege of Damascus</h4>
+                                <p>The Crusaders attacked Damascus (a neutral city), driving it into the arms of Nur ad-Din. The siege failed in days.</p>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            </section>
+
+            <section class="node-section" id="third">
+                <div class="connector-dot"></div>
+                <article class="card-main">
+                    <span class="node-year">1189 – 1192</span>
+                    <h2 class="node-title">The Third Crusade</h2>
+                    <p class="node-summary">"The Kings' Crusade." Triggered by Saladin's capture of Jerusalem. A clash of titans: Richard the Lionheart vs. Saladin.</p>
+                    
+                    <div class="figures-row">
+                        <div class="figure-badge">
+                            <div class="figure-avatar" style="background:#D4AF37; color:#000">S</div>
+                            Saladin
+                            <div class="tooltip"><strong>Saladin</strong><br>Sultan of Egypt/Syria. Unified Muslim forces and recaptured Jerusalem. Respected for his chivalry.</div>
+                        </div>
+                        <div class="figure-badge">
+                            <div class="figure-avatar" style="background:#8E1600">R</div>
+                            Richard I
+                            <div class="tooltip"><strong>Richard the Lionheart</strong><br>King of England. A military genius who defeated Saladin at Arsuf but failed to take Jerusalem.</div>
+                        </div>
+                    </div>
+
+                    <button class="details-trigger" onclick="toggleDetails(this)">
+                        Explore Details 
+                        <svg width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 1L5 5L9 1"/></svg>
+                    </button>
+
+                    <div class="details-panel">
+                        <div class="details-content">
+                            <div class="detail-block">
+                                <h4>Treaty of Jaffa</h4>
+                                <p>Ended in a stalemate. Jerusalem remained under Muslim control, but unarmed Christian pilgrims were allowed to visit.</p>
+                            </div>
+                            <div class="detail-block">
+                                <h4>Battle of Hattin</h4>
+                                <p>1187. The catastrophic defeat of the Crusader army by Saladin that led to the loss of the Holy City.</p>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            </section>
+
+            <section class="node-section" id="fourth">
+                <div class="connector-dot"></div>
+                <article class="card-main">
+                    <span class="node-year">1202 – 1204</span>
+                    <h2 class="node-title">The Fourth Crusade</h2>
+                    <p class="node-summary">The most controversial campaign. Intended for Jerusalem, it was diverted by Venetian debt and resulted in the sack of Constantinople.</p>
+                    
+                    <div class="figures-row">
+                        <div class="figure-badge">
+                            <div class="figure-avatar" style="background:#2c3e50">D</div>
+                            Dandolo
+                            <div class="tooltip"><strong>Enrico Dandolo</strong><br>The blind Doge of Venice who manipulated the crusade to destroy his Byzantine rivals.</div>
+                        </div>
+                    </div>
+
+                    <button class="details-trigger" onclick="toggleDetails(this)">
+                        Explore Details 
+                        <svg width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 1L5 5L9 1"/></svg>
+                    </button>
+
+                    <div class="details-panel">
+                        <div class="details-content">
+                            <div class="detail-block">
+                                <h4>Sack of Constantinople</h4>
+                                <p>Christians attacking Christians. The Crusaders looted the city's wealth and relics, solidifying the Great Schism.</p>
+                            </div>
+                            <div class="detail-block">
+                                <h4>Consequences</h4>
+                                <p>The Byzantine Empire was fatally weakened, eventually paving the way for Ottoman conquest in 1453.</p>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            </section>
+
+            <section class="node-section legacy" id="legacy">
+                <div class="connector-dot" style="background:var(--text-primary)"></div>
+                <article class="card-main">
+                    <span class="node-year">Legacy</span>
+                    <h2 class="node-title">Impact & Memory</h2>
+                    <p class="node-summary">The Crusades left a deep scar on relations between Christianity and Islam, but also facilitated a massive exchange of culture and goods.</p>
+                    
+                    <div class="details-content" style="border:none; margin:0; padding:0;">
+                        <div class="detail-block">
+                            <h4>Economic Shift</h4>
+                            <p>Rise of Italian city-states (Venice, Genoa) and the influx of Eastern goods (silk, spices) into Europe.</p>
+                        </div>
+                        <div class="detail-block">
+                            <h4>Cultural Exchange</h4>
+                            <p>Reintroduction of Greek philosophy, algebra, and advanced medicine to Europe from the Islamic world.</p>
+                        </div>
+                    </div>
+                </article>
+            </section>
+
+            <footer>
+                <p>Designed as an Educational Resource | Single HTML File Project</p>
+                <p style="opacity:0.6; margin-top:10px;">No external libraries were used.</p>
+            </footer>
+
         </div>
     </div>
 
-    <div id="info-card">
-        <span class="tag" id="card-tag">Figure</span>
-        <h2 id="card-title">Title</h2>
-        <p id="card-desc">Description goes here.</p>
-    </div>
-
-    <div id="timeline">
-        <div class="timeline-track">
-            </div>
-    </div>
-
-    <div id="footer-info">
-        Interactive Educational Resource | Vanilla JS & CSS
-    </div>
-
     <script>
-        /**
-         * ================================================================
-         * DATA STRUCTURE
-         * Hierarchical JSON data representing the mind map.
-         * ================================================================
+        /* * --------------------------------------------------------------------------
+         * LOGIC: INTERACTION & ANIMATION
+         * Smooth Scroll, Zoom System, Accordions
+         * --------------------------------------------------------------------------
          */
-        const data = {
-            id: "root",
-            title: "The Crusades",
-            type: "root",
-            desc: "A series of religious wars between Christians and Muslims (1095–1291).",
-            detail: "Initiated by the Latin Church in the medieval period, aimed at recovering the Holy Land from Islamic rule.",
-            children: [
-                {
-                    id: "causes",
-                    title: "Origins & Causes",
-                    type: "event",
-                    desc: "Religious, political, and economic motivations.",
-                    detail: "Key factors included the threat to Byzantium, the Great Schism (1054), and the concept of 'Just War'.",
-                    children: [
-                        { 
-                            id: "urban", 
-                            title: "Pope Urban II", 
-                            type: "person", 
-                            desc: "Council of Clermont (1095)",
-                            detail: "Gave the sermon initiating the First Crusade. Famous for the rallying cry 'Deus Vult' (God wills it)."
-                        },
-                        { 
-                            id: "alexios", 
-                            title: "Alexios I Komnenos", 
-                            type: "person", 
-                            desc: "Byzantine Emperor",
-                            detail: "Sent a plea to the Pope for military aid against the Seljuk Turks, inadvertently triggering the Crusades."
-                        },
-                        {
-                            id: "motivations",
-                            title: "Motivations",
-                            type: "event",
-                            desc: "Faith, Land, & Penance",
-                            detail: "Knights sought remission of sins (plenary indulgence), land in the East, and loot."
-                        }
-                    ]
-                },
-                {
-                    id: "cr1",
-                    title: "First Crusade",
-                    type: "event",
-                    desc: "1096–1099 (Success)",
-                    detail: "The only militarily successful crusade for Christendom. Resulted in the capture of Jerusalem.",
-                    children: [
-                        { id: "antioch", title: "Siege of Antioch", type: "event", desc: "1097-1098", detail: "A grueling 8-month siege. Crusaders nearly starved but eventually captured the city." },
-                        { id: "jerusalem1", title: "Fall of Jerusalem", type: "event", desc: "1099", detail: "Crusaders breached the walls and massacred many Muslim and Jewish inhabitants." },
-                        { id: "states", title: "Crusader States", type: "outcome", desc: "Outremer established", detail: "Creation of the Kingdom of Jerusalem, County of Tripoli, Principality of Antioch, and County of Edessa." }
-                    ]
-                },
-                {
-                    id: "cr2",
-                    title: "Second Crusade",
-                    type: "event",
-                    desc: "1147–1149 (Failure)",
-                    detail: "Sparked by the fall of Edessa. Led by Kings Louis VII and Conrad III, but ended in disaster.",
-                    children: [
-                        { id: "bernard", title: "Bernard of Clairvaux", type: "person", desc: "Preacher", detail: "Primary spiritual influence who preached the crusade." },
-                        { id: "damascus", title: "Siege of Damascus", type: "event", desc: "1148", detail: "A failed siege that destroyed the Crusaders' reputation and led to their retreat." }
-                    ]
-                },
-                {
-                    id: "cr3",
-                    title: "Third Crusade",
-                    type: "event",
-                    desc: "1189–1192 (Stalemate)",
-                    detail: "Known as the Kings' Crusade. Triggered by Saladin's capture of Jerusalem.",
-                    children: [
-                        { 
-                            id: "saladin", 
-                            title: "Saladin", 
-                            type: "person", 
-                            desc: "Sultan of Egypt/Syria",
-                            detail: "Unified Muslim forces. Recaptured Jerusalem in 1187 at the Battle of Hattin. Respected for his chivalry."
-                        },
-                        { 
-                            id: "richard", 
-                            title: "Richard I", 
-                            type: "person", 
-                            desc: "The Lionheart",
-                            detail: "King of England. Military genius. Defeated Saladin at Arsuf but could not retake Jerusalem."
-                        },
-                        { id: "treaty", title: "Treaty of Jaffa", type: "outcome", desc: "1192", detail: "Truce: Jerusalem remained Muslim, but unarmed Christian pilgrims could visit." }
-                    ]
-                },
-                {
-                    id: "cr4",
-                    title: "Fourth Crusade",
-                    type: "event",
-                    desc: "1202–1204 (Diverted)",
-                    detail: "Never reached the Holy Land. Instead, Crusaders sacked the Christian city of Constantinople.",
-                    children: [
-                        { id: "venice", title: "Enrico Dandolo", type: "person", desc: "Doge of Venice", detail: "Redirected the crusade to pay off debts owed for the Venetian fleet." },
-                        { id: "sack", title: "Sack of Constantinople", type: "event", desc: "1204", detail: "Solidified the Great Schism between Catholic and Orthodox churches. Weakened Byzantium permanently." }
-                    ]
-                },
-                {
-                    id: "legacy",
-                    title: "Legacy & Impact",
-                    type: "outcome",
-                    desc: "Long-term Consequences",
-                    detail: "Cultural exchange, trade routes, and deep religious scars that persist today.",
-                    children: [
-                        { id: "eco", title: "Economic", type: "outcome", desc: "Trade Expansion", detail: "Italian city-states (Venice, Genoa) dominated trade. Spices, silk, and sugar entered Europe." },
-                        { id: "cult", title: "Cultural", type: "outcome", desc: "Knowledge Transfer", detail: "European re-discovery of Aristotle, algebra, and advanced architecture from the Islamic world." }
-                    ]
-                }
-            ]
-        };
 
-        const timelineEvents = [
-            { year: "1095", label: "Council of Clermont" },
-            { year: "1099", label: "Jerusalem Captured" },
-            { year: "1144", label: "Fall of Edessa" },
-            { year: "1187", label: "Battle of Hattin" },
-            { year: "1192", label: "Treaty of Jaffa" },
-            { year: "1204", label: "Sack of Constantinople" },
-            { year: "1291", label: "Fall of Acre" }
-        ];
-
-        /**
-         * ================================================================
-         * APP LOGIC
-         * Handles rendering, layout calculation, and interactivity.
-         * ================================================================
-         */
-        
-        // State
-        const state = {
-            collapsed: [], // IDs of collapsed nodes
-            scale: 1,
-            nodes: {},     // Flat map of nodes for easy access
-            rootX: 2000,   // Canvas Center X
-            rootY: 1500    // Canvas Center Y
-        };
-
-        // DOM Elements
-        const canvasEl = document.getElementById('canvas');
-        const nodeLayer = document.getElementById('node-layer');
-        const svgLayer = document.getElementById('svg-layer');
-        const infoCard = document.getElementById('info-card');
         const viewport = document.getElementById('viewport');
+        const container = document.getElementById('content-container');
+        let currentZoom = 1;
 
-        // --- 1. INITIALIZATION & HELPERS ---
-
-        function init() {
-            renderTimeline();
-            // Start centered
-            viewport.scrollLeft = state.rootX - viewport.clientWidth / 2;
-            viewport.scrollTop = state.rootY - viewport.clientHeight / 2;
-            
-            // Build Flat Map & Initial Render
-            flattenData(data, null);
-            renderTree();
+        // 1. Zoom Logic
+        function adjustZoom(delta) {
+            currentZoom += delta;
+            // Clamp zoom levels
+            if (currentZoom < 0.6) currentZoom = 0.6;
+            if (currentZoom > 1.4) currentZoom = 1.4;
+            applyZoom();
         }
 
-        function flattenData(node, parentId) {
-            state.nodes[node.id] = { ...node, parent: parentId };
-            // Initially collapse deep levels to keep UI clean
-            if(node.id.startsWith("cr") || node.id === "legacy") {
-                state.collapsed.push(node.id);
-            }
-            if (node.children) {
-                node.children.forEach(child => flattenData(child, node.id));
-            }
+        function resetZoom() {
+            currentZoom = 1;
+            applyZoom();
         }
 
-        // --- 2. LAYOUT ENGINE (Recursive Tree Layout) ---
-
-        function calculateLayout(node, x, y, level, angleRange) {
-            // Store calculated position
-            const nodeObj = state.nodes[node.id];
-            nodeObj._x = x;
-            nodeObj._y = y;
-
-            if (!node.children || state.collapsed.includes(node.id)) return;
-
-            const children = node.children;
-            const count = children.length;
-            
-            // Dynamic spacing based on depth
-            const radius = 350 - (level * 40); 
-            // Spread angle based on number of children
-            const totalSpread = Math.min(Math.PI, count * 0.4); 
-            const startAngle = -totalSpread / 2;
-
-            children.forEach((child, index) => {
-                // Calculate angle for fan layout
-                let angleOffset = startAngle + (index / (count - 1 || 1)) * totalSpread;
-                if (count === 1) angleOffset = 0;
-
-                // Rotate based on parent's position relative to grandparent (for natural flow)
-                // For root, we flow downwards. For others, flow away from center.
-                let baseAngle = Math.PI / 2; // Down
-                
-                if (level > 0) {
-                     // Vector from parent to this node (approximated simple logic for demo)
-                     // In a real force-directed graph, this is complex.
-                     // Here we use a simpler vertical-ish tree logic.
-                     const parent = state.nodes[nodeObj.parent];
-                     if(parent) {
-                        // Keep flowing generally downwards/outwards
-                        // X offset helps separate branches
-                        const offsetX = (index - (count-1)/2) * 250;
-                        const offsetY = 200;
-                        
-                        calculateLayout(child, x + offsetX, y + offsetY, level + 1);
-                        return; 
-                     }
-                }
-
-                // Root Children Layout (Radial-ish)
-                const finalAngle = baseAngle + angleOffset;
-                // Specific manual overrides for better aesthetics on First level
-                let dx, dy;
-                if(level === 0) {
-                    // Manually spreading the main branches
-                    const spreadX = 400; 
-                    const spreadY = 300;
-                    if(index === 0) { dx = -spreadX; dy = spreadY; } // Causes
-                    if(index === 1) { dx = -spreadX/2; dy = spreadY + 150; } // CR1
-                    if(index === 2) { dx = spreadX/2; dy = spreadY + 150; } // CR2
-                    if(index === 3) { dx = spreadX; dy = spreadY; } // CR3
-                    if(index === 4) { dx = spreadX + 200; dy = spreadY - 100; } // CR4
-                    if(index === 5) { dx = -spreadX - 200; dy = spreadY - 100; } // Legacy
-                } else {
-                    // Fallback
-                    dx = Math.sin(finalAngle) * radius;
-                    dy = Math.cos(finalAngle) * radius;
-                }
-                
-                calculateLayout(child, x + dx, y + dy, level + 1);
-            });
-        }
-        
-        // Simpler layout: Horizontal/Vertical mix
-        function computeTreePositions(nodeId, x, y, depth) {
-            const node = state.nodes[nodeId];
-            node._x = x;
-            node._y = y;
-            
-            const rawNode = findNodeData(nodeId, data);
-            if(!rawNode.children || state.collapsed.includes(nodeId)) return;
-
-            const children = rawNode.children;
-            const widthPerNode = 260; // Node width + gap
-            const totalWidth = children.length * widthPerNode;
-            let startX = x - (totalWidth / 2) + (widthPerNode / 2);
-            
-            children.forEach((child, i) => {
-                // Stagger Y slightly to avoid straight lines looking boring
-                const stagger = (i % 2 === 0) ? 0 : 40;
-                computeTreePositions(child.id, startX + (i * widthPerNode), y + 250 + stagger, depth + 1);
-            });
-        }
-
-        function findNodeData(id, current) {
-            if (current.id === id) return current;
-            if (current.children) {
-                for (let child of current.children) {
-                    const found = findNodeData(id, child);
-                    if (found) return found;
-                }
-            }
-            return null;
-        }
-
-        // --- 3. RENDERING ---
-
-        function renderTree() {
-            // 1. Calculate Positions
-            computeTreePositions("root", state.rootX, state.rootY, 0);
-
-            // 2. Clear DOM
-            nodeLayer.innerHTML = '';
-            svgLayer.innerHTML = '';
-
-            // 3. Draw Nodes & Lines recursively
-            drawNodeAndChildren("root");
-        }
-
-        function drawNodeAndChildren(nodeId) {
-            const node = state.nodes[nodeId];
-            const rawNode = findNodeData(nodeId, data);
-
-            // Create HTML Node
-            const el = document.createElement('div');
-            el.className = `node ${rawNode.type} ${state.collapsed.includes(nodeId) ? 'collapsed' : 'expanded'}`;
-            el.style.left = node._x + 'px';
-            el.style.top = node._y + 'px';
-            
-            // Icon
-            const icon = rawNode.children ? '<div class="toggle-icon">></div>' : '';
-
-            el.innerHTML = `
-                ${icon}
-                <h3>${rawNode.title}</h3>
-                <p>${rawNode.desc}</p>
-            `;
-
-            // Interaction
-            el.onclick = (e) => {
-                e.stopPropagation();
-                if(rawNode.children) {
-                    toggleNode(nodeId);
-                } else {
-                    showInfo(rawNode);
-                }
-            };
-
-            el.onmouseenter = () => {
-                showInfo(rawNode);
-                highlightPath(nodeId, true);
-            };
-            
-            el.onmouseleave = () => {
-                highlightPath(nodeId, false);
-            };
-
-            nodeLayer.appendChild(el);
-
-            // Draw Connection to Parent
-            if (node.parent) {
-                const pNode = state.nodes[node.parent];
-                drawCurve(pNode._x + 110, pNode._y + 80, node._x + 110, node._y, nodeId);
-            }
-
-            // Recurse
-            if (rawNode.children && !state.collapsed.includes(nodeId)) {
-                rawNode.children.forEach(child => drawNodeAndChildren(child.id));
-            }
-        }
-
-        function drawCurve(x1, y1, x2, y2, id) {
-            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-            
-            // Bezier curve logic for smooth tree
-            const cp1x = x1;
-            const cp1y = y1 + (y2 - y1) / 2;
-            const cp2x = x2;
-            const cp2y = y2 - (y2 - y1) / 2;
-            
-            const d = `M ${x1} ${y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
-            
-            path.setAttribute("d", d);
-            path.setAttribute("class", "connector");
-            path.setAttribute("id", `path-${id}`);
-            svgLayer.appendChild(path);
-        }
-
-        // --- 4. INTERACTIVITY ---
-
-        function toggleNode(id) {
-            const idx = state.collapsed.indexOf(id);
-            if (idx > -1) {
-                state.collapsed.splice(idx, 1); // Expand
+        function applyZoom() {
+            container.style.transform = `scale(${currentZoom})`;
+            // Adjust margin to prevent cutting off when zoomed out
+            if(currentZoom < 1) {
+                container.style.marginTop = `${(1 - currentZoom) * -100}px`;
             } else {
-                state.collapsed.push(id); // Collapse
+                container.style.marginTop = '0px';
             }
-            renderTree();
         }
 
-        function showInfo(nodeData) {
-            infoCard.querySelector('#card-tag').innerText = nodeData.type.toUpperCase();
-            infoCard.querySelector('#card-tag').style.color = 'var(--text-light)';
-            infoCard.querySelector('#card-title').innerText = nodeData.title;
-            infoCard.querySelector('#card-desc').innerText = nodeData.detail || nodeData.desc;
-            infoCard.classList.add('visible');
+        // 2. Accordion Logic (Collapsible Details)
+        function toggleDetails(btn) {
+            const panel = btn.nextElementSibling;
+            const isOpen = panel.style.maxHeight;
+
+            // Reset all others (Accordion behavior - optional, but cleaner)
+            /* document.querySelectorAll('.details-panel').forEach(p => {
+                p.style.maxHeight = null;
+                p.previousElementSibling.classList.remove('active');
+            }); 
+            */
+
+            if (isOpen) {
+                panel.style.maxHeight = null;
+                btn.classList.remove('active');
+                btn.innerHTML = `Explore Details <svg width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 1L5 5L9 1"/></svg>`;
+            } else {
+                panel.style.maxHeight = panel.scrollHeight + "px";
+                btn.classList.add('active');
+                btn.innerHTML = `Close Details <svg width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 5L5 1L9 5"/></svg>`;
+            }
+        }
+
+        // 3. Smooth Scroll Navigation
+        function scrollToId(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                // Calculate position relative to container scale
+                const top = el.offsetTop;
+                viewport.scrollTo({
+                    top: top * currentZoom - 50, // Offset for breathing room
+                    behavior: 'smooth'
+                });
+            }
+        }
+
+        // 4. Intersection Observer for Fade-In Animations
+        const observerOptions = {
+            threshold: 0.15,
+            root: viewport
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    // Update Timeline Active State
+                    updateTimeline(entry.target.id);
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.node-section').forEach(section => {
+            observer.observe(section);
+        });
+
+        function updateTimeline(id) {
+            document.querySelectorAll('.timeline-dot').forEach(dot => {
+                dot.classList.remove('active');
+            });
+            // Find link matching the id
+            const buttons = document.querySelectorAll('.timeline-dot');
+            // Mapping logic (simple index based or text based)
+            // This is a simple visual highlighter
+            // In a real app we'd map IDs to button indices rigorously.
         }
         
-        // Hide info card when clicking bg
-        document.addEventListener('click', (e) => {
-             if(e.target.closest('.node') || e.target.closest('#info-card')) return;
-             infoCard.classList.remove('visible');
-        });
-
-        function highlightPath(nodeId, active) {
-            const path = document.getElementById(`path-${nodeId}`);
-            if(path) {
-                if(active) path.classList.add('active');
-                else path.classList.remove('active');
-            }
-            // Optional: Recursively highlight up the tree
-            if(active && state.nodes[nodeId].parent) {
-                highlightPath(state.nodes[nodeId].parent, true);
-            } else if (!active && state.nodes[nodeId].parent) {
-                highlightPath(state.nodes[nodeId].parent, false);
-            }
+        // 5. About Modal
+        function toggleAbout() {
+            alert("The Crusades Project\n\nBuilt as a demonstration of high-fidelity, single-file web design.\n\nTechniques used:\n- CSS Variables for theming\n- Flexbox/Grid for layout\n- Cubic-bezier transitions for 'Apple-like' motion\n- Vanilla JS for zoom and state.");
         }
 
-        function renderTimeline() {
-            const track = document.querySelector('.timeline-track');
-            timelineEvents.forEach(evt => {
-                const el = document.createElement('div');
-                el.className = 'timeline-point';
-                el.innerHTML = `<span>${evt.year}</span><small>${evt.label}</small>`;
-                track.appendChild(el);
-            });
-        }
-
-        // --- 5. PANNING LOGIC ---
-        let isPanning = false;
-        let startX, startY, scrollLeft, scrollTop;
-
-        viewport.addEventListener('mousedown', (e) => {
-            isPanning = true;
-            viewport.style.cursor = 'grabbing';
-            startX = e.pageX - viewport.offsetLeft;
-            startY = e.pageY - viewport.offsetTop;
-            scrollLeft = viewport.scrollLeft;
-            scrollTop = viewport.scrollTop;
+        // 6. Keyboard Shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === '+' || e.key === '=') adjustZoom(0.1);
+            if (e.key === '-') adjustZoom(-0.1);
+            if (e.key === '0') resetZoom();
         });
-
-        viewport.addEventListener('mouseleave', () => { isPanning = false; viewport.style.cursor = 'grab'; });
-        viewport.addEventListener('mouseup', () => { isPanning = false; viewport.style.cursor = 'grab'; });
-
-        viewport.addEventListener('mousemove', (e) => {
-            if (!isPanning) return;
-            e.preventDefault();
-            const x = e.pageX - viewport.offsetLeft;
-            const y = e.pageY - viewport.offsetTop;
-            const walkX = (x - startX) * 1; 
-            const walkY = (y - startY) * 1;
-            viewport.scrollLeft = scrollLeft - walkX;
-            viewport.scrollTop = scrollTop - walkY;
-        });
-
-        // Run
-        init();
 
     </script>
 </body>
