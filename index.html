@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Crusades: Interactive Mind Map</title>
+    <style>
+        /* ================================================================
+           CSS STYLING
+           I'm using CSS variables for colors so we can tweak the theme easily.
+           The aesthetic is "Medieval Student Project" - organic and imperfect.
+           ================================================================
+        */
+        :root {
+            --parchment: #fdf5e6;
+            --parchment-dark: #e8dcc5;
+            --ink: #2b2b2b;
+            --blood-red: #8a1c1c;
+            --royal-gold: #c59d08;
+            --faded-ink: #555;
+            --node-shadow: rgba(0,0,0,0.15);
+        }
+
+        /* Resetting basic margins and picking a font that looks 
+           somewhat historical but exists on all computers (Serif fallback).
+        */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--parchment);
+            /* Creating a paper texture using CSS gradients */
+            background-image: radial-gradient(var(--parchment-dark) 1px, transparent 1px),
+                              radial-gradient(var(--parchment-dark) 1px, transparent 1px);
+            background-size: 40px 40px;
+            background-position: 0 0, 20px 20px;
+            font-family: "Palatino Linotype", "Book Antiqua", Palatino, serif;
+            color: var(--ink);
+            overflow: hidden; /* We'll handle scrolling inside the map container */
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* SVG Layer for drawing the connecting lines. 
+           It sits behind the HTML nodes (z-index -1).
+        */
+        #connections-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Let clicks pass through to the nodes */
+            z-index: 0;
+        }
+
+        path {
+            fill: none;
+            stroke: var(--ink);
+            stroke-width: 2px;
+            stroke-linecap: round;
+            /* Making the lines look sketchy/imperfect */
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 0;
+            transition: stroke-dashoffset 2s ease;
+        }
+
+        /* The main container for the draggable mind map */
+        #map-container {
+            flex-grow: 1;
+            position: relative;
+            overflow: auto;
+            cursor: grab;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 100px; /* Space for the root node */
+        }
+
+        #map-container:active {
+            cursor: grabbing;
+        }
+
+        /* NODE STYLING 
+           This is where the "Hand-Drawn" look happens.
+        */
+        .node {
+            position: absolute;
+            background: #fffef8;
+            border: 2px solid var(--ink);
+            padding: 15px 25px;
+            max-width: 250px;
+            text-align: center;
+            cursor: pointer;
+            z-index: 1;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            
+            /* This weird border-radius syntax creates organic, non-circular blobs */
+            border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+            box-shadow: 2px 5px 15px var(--node-shadow);
+        }
+
+        .node:hover {
+            transform: scale(1.05) rotate(-1deg);
+            box-shadow: 4px 8px 20px rgba(0,0,0,0.2);
+            background-color: #fff;
+        }
+
+        /* Styling specifically for the Root Node */
+        .node.root {
+            font-size: 2em;
+            font-weight: bold;
+            border: 4px solid var(--blood-red);
+            background-color: var(--parchment-dark);
+            color: var(--blood-red);
+            z-index: 10;
+        }
+
+        /* Styling for Person/Figure nodes */
+        .node.person {
+            border-color: var(--royal-gold);
+            border-width: 3px;
+        }
+        
+        /* Styling for Outcomes/Legacy */
+        .node.legacy {
+            border-style: dashed;
+        }
+
+        .node h3 {
+            margin: 0 0 5px 0;
+            font-size: 1.1em;
+        }
+
+        .node p {
+            margin: 0;
+            font-size: 0.9em;
+            color: var(--faded-ink);
+        }
+
+        .toggle-btn {
+            display: block;
+            margin-top: 5px;
+            font-size: 0.8em;
+            font-weight: bold;
+            color: var(--blood-red);
+        }
+
+        /* TOOLTIP 
+           Hidden by default, appears on hover over specific elements.
+        */
+        #tooltip {
+            position: absolute;
+            background: var(--ink);
+            color: var(--parchment);
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 100;
+            max-width: 200px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        /* TIMELINE STRIP 
+           Fixed at the bottom.
+        */
+        #timeline {
+            height: 60px;
+            background: var(--parchment-dark);
+            border-top: 3px solid var(--ink);
+            display: flex;
+            align-items: center;
+            overflow-x: auto;
+            padding: 0 20px;
+            white-space: nowrap;
+            z-index: 20;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.1);
+        }
+
+        .timeline-event {
+            display: inline-block;
+            margin-right: 40px;
+            position: relative;
+            padding-top: 5px;
+            font-size: 0.85em;
+            cursor: help;
+        }
+
+        .timeline-event::before {
+            content: '';
+            position: absolute;
+            top: -14px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 10px;
+            height: 10px;
+            background: var(--blood-red);
+            border-radius: 50%;
+            border: 2px solid var(--ink);
+        }
+
+        /* ABOUT SECTION 
+        */
+        #about-box {
+            position: fixed;
+            bottom: 70px;
+            right: 20px;
+            background: white;
+            border: 2px solid var(--ink);
+            padding: 15px;
+            max-width: 250px;
+            font-size: 0.8em;
+            box-shadow: 5px 5px 0px rgba(0,0,0,0.1);
+            transform: rotate(2deg);
+        }
+    </style>
+</head>
+<body>
+
+    <svg id="connections-layer"></svg>
+
+    <div id="map-container">
+        <div id="node-canvas" style="position: relative; width: 3000px; height: 2000px;">
+            </div>
+    </div>
+
+    <div id="tooltip"></div>
+
+    <div id="about-box">
+        <strong>About this Map</strong><br>
+        <p>Built with raw HTML/CSS/JS (no libraries). Features a recursive tree layout algorithm and dynamic SVG connector generation. The design mimics medieval parchment.</p>
+        <p style="margin-top:5px; color: #888;">Double-click background to center.</p>
+    </div>
+
+    <div id="timeline">
+        <div class="timeline-event" data-desc="Council of Clermont calls for Crusade">1095: Call to Arms</div>
+        <div class="timeline-event" data-desc="Crusaders capture Jerusalem">1099: Fall of Jerusalem</div>
+        <div class="timeline-event" data-desc="Fall of Edessa triggers 2nd Crusade">1144: Edessa Falls</div>
+        <div class="timeline-event" data-desc="Saladin recaptures Jerusalem">1187: Battle of Hattin</div>
+        <div class="timeline-event" data-desc="Crusaders sack Constantinople instead of Jerusalem">1204: Sack of Constantinople</div>
+        <div class="timeline-event" data-desc="Loss of Acre, end of Crusader states">1291: Fall of Acre</div>
+    </div>
+
+    <script>
+        /*
+           ================================================================
+           JAVASCRIPT LOGIC
+           This script handles the data structure, the recursive rendering
+           of nodes, and the math required to draw lines between them.
+           ================================================================
+        */
+
+        // 1. THE DATA
+        // A hierarchical JSON object representing the mind map content.
+        const treeData = {
+            id: "root",
+            title: "The Crusades",
+            desc: "1095 – 1291",
+            type: "root",
+            x: 1500, // Starting coordinates (center of our large canvas)
+            y: 300,
+            children: [
+                {
+                    id: "causes",
+                    title: "Causes & Context",
+                    desc: "Why did they happen?",
+                    x: 900, y: 500,
+                    children: [
+                        { id: "relig", title: "Religious Zeal", desc: "Remission of sins, holy war.", x: 700, y: 700 },
+                        { id: "pol", title: "Byzantine Plea", desc: "Alexios I needed help vs Turks.", x: 900, y: 750 },
+                        { id: "eco", title: "Expansion", desc: "Young nobles seeking land/loot.", x: 1100, y: 700 }
+                    ]
+                },
+                {
+                    id: "cr1",
+                    title: "First Crusade",
+                    desc: "1096–1099",
+                    x: 1300, y: 600,
+                    children: [
+                        { 
+                            id: "urban", 
+                            title: "Pope Urban II", 
+                            desc: "Council of Clermont", 
+                            type: "person", 
+                            tooltip: "Initiated the First Crusade with the speech: 'Deus Vult' (God wills it).",
+                            x: 1200, y: 850 
+                        },
+                        { id: "jeru1", title: "Capture of Jerusalem", desc: "1099. Brutal massacre of inhabitants.", x: 1400, y: 850 },
+                        { id: "states", title: "Crusader States", desc: "Kingdom of Jerusalem, Edessa, etc.", x: 1300, y: 950 }
+                    ]
+                },
+                {
+                    id: "cr2",
+                    title: "Second Crusade",
+                    desc: "1147–1149",
+                    x: 1700, y: 600,
+                    children: [
+                        { id: "fail", title: "Total Failure", desc: "Armies destroyed in Anatolia.", x: 1650, y: 800 },
+                        { id: "damas", title: "Siege of Damascus", desc: "Disastrous decision led to retreat.", x: 1800, y: 850 }
+                    ]
+                },
+                {
+                    id: "cr3",
+                    title: "Third Crusade",
+                    desc: "The Kings' Crusade",
+                    x: 1500, y: 1100,
+                    children: [
+                        { 
+                            id: "richard", 
+                            title: "Richard I", 
+                            desc: "The Lionheart", 
+                            type: "person", 
+                            tooltip: "King of England. Military genius but failed to take Jerusalem. Executed prisoners at Acre.",
+                            x: 1350, y: 1300 
+                        },
+                        { 
+                            id: "saladin", 
+                            title: "Saladin", 
+                            desc: "Sultan of Egypt/Syria", 
+                            type: "person", 
+                            tooltip: "Unified Muslim forces. Recaptured Jerusalem in 1187. Respected by foes for chivalry.",
+                            x: 1650, y: 1300 
+                        },
+                        { id: "truce", title: "Treaty of Jaffa", desc: "Christians keep coast; pilgrims allowed in Jerusalem.", x: 1500, y: 1400 }
+                    ]
+                },
+                {
+                    id: "cr4",
+                    title: "Fourth Crusade",
+                    desc: "1202–1204",
+                    x: 2000, y: 500,
+                    children: [
+                        { id: "venice", title: "Venetian Debt", desc: "Crusaders couldn't pay for ships.", x: 1950, y: 700 },
+                        { id: "constant", title: "Sack of Constantinople", desc: "Christians attacked Christians. Latin Empire formed.", x: 2150, y: 700, type: "legacy" }
+                    ]
+                },
+                {
+                    id: "legacy",
+                    title: "Legacy & Myths",
+                    desc: "Long term impact",
+                    type: "legacy",
+                    x: 2100, y: 1000,
+                    children: [
+                        { id: "eco_leg", title: "Trade Routes", desc: "Spices, silk, and knowledge flowed to Europe.", x: 2000, y: 1200 },
+                        { id: "schism", title: "East-West Schism", desc: "Permanent rift between Catholic and Orthodox.", x: 2200, y: 1200 }
+                    ]
+                }
+            ]
+        };
+
+        // Global state to track expanded/collapsed nodes
+        const state = {
+            collapsed: [] 
+        };
+
+        const canvas = document.getElementById('node-canvas');
+        const svgLayer = document.getElementById('connections-layer');
+        const mapContainer = document.getElementById('map-container');
+        const tooltip = document.getElementById('tooltip');
+
+        // 2. RENDER FUNCTIONS
+
+        function renderNode(nodeData, parentElement) {
+            // Create the HTML element for the node
+            const nodeEl = document.createElement('div');
+            nodeEl.className = `node ${nodeData.type || ''}`;
+            nodeEl.id = `node-${nodeData.id}`;
+            
+            // Randomize rotation slightly for hand-drawn feel
+            const randomRot = (Math.random() * 4) - 2; 
+            
+            nodeEl.style.left = `${nodeData.x}px`;
+            nodeEl.style.top = `${nodeData.y}px`;
+            nodeEl.style.transform = `rotate(${randomRot}deg)`;
+
+            // HTML Content
+            let html = `<h3>${nodeData.title}</h3>`;
+            if (nodeData.desc) html += `<p>${nodeData.desc}</p>`;
+            if (nodeData.children && nodeData.children.length > 0) {
+                const isCollapsed = state.collapsed.includes(nodeData.id);
+                html += `<span class="toggle-btn">${isCollapsed ? '[ + Expand ]' : '[ - Collapse ]'}</span>`;
+            }
+            nodeEl.innerHTML = html;
+
+            // Interactions
+            nodeEl.onclick = (e) => {
+                e.stopPropagation(); // Prevent drag event trigger
+                toggleNode(nodeData.id);
+            };
+
+            // Tooltip logic
+            if (nodeData.tooltip) {
+                nodeEl.addEventListener('mouseenter', (e) => showTooltip(e, nodeData.tooltip));
+                nodeEl.addEventListener('mousemove', moveTooltip);
+                nodeEl.addEventListener('mouseleave', hideTooltip);
+            } else {
+                // Add timeline tooltips logic
+                nodeEl.addEventListener('mouseenter', () => hideTooltip());
+            }
+
+            parentElement.appendChild(nodeEl);
+
+            // Recursively render children if not collapsed
+            if (nodeData.children && !state.collapsed.includes(nodeData.id)) {
+                nodeData.children.forEach(child => renderNode(child, parentElement));
+            }
+        }
+
+        // 3. DRAWING LINES (SVG)
+
+        function drawLines(node) {
+            if (!node.children || state.collapsed.includes(node.id)) return;
+
+            const parentEl = document.getElementById(`node-${node.id}`);
+            if (!parentEl) return;
+
+            // Get absolute geometry relative to the canvas
+            const pRect = parentEl.getBoundingClientRect();
+            const cRect = canvas.getBoundingClientRect(); // Use canvas for offset
+
+            const pX = (pRect.left - cRect.left) + pRect.width / 2;
+            const pY = (pRect.top - cRect.top) + pRect.height / 2;
+
+            node.children.forEach(child => {
+                const childEl = document.getElementById(`node-${child.id}`);
+                if (childEl) {
+                    const chRect = childEl.getBoundingClientRect();
+                    const cX = (chRect.left - cRect.left) + chRect.width / 2;
+                    const cY = (chRect.top - cRect.top) + chRect.height / 2;
+
+                    // Create a Bezier curve for a more "drawn" look than a straight line
+                    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                    
+                    // Control point logic: pull the curve slightly
+                    const controlY = pY + (cY - pY) / 2;
+                    
+                    const d = `M ${pX} ${pY} C ${pX} ${controlY}, ${cX} ${controlY}, ${cX} ${cY}`;
+                    
+                    path.setAttribute("d", d);
+                    svgLayer.appendChild(path);
+
+                    // Recurse
+                    drawLines(child);
+                }
+            });
+        }
+
+        // 4. CORE LOGIC
+
+        function renderTree() {
+            // Clear current view
+            canvas.innerHTML = '';
+            svgLayer.innerHTML = '';
+            
+            // Adjust SVG size to match canvas
+            svgLayer.setAttribute('width', canvas.style.width);
+            svgLayer.setAttribute('height', canvas.style.height);
+
+            // Build DOM
+            renderNode(treeData, canvas);
+
+            // Draw Lines (wait slightly for DOM layout to settle)
+            setTimeout(() => {
+                drawLines(treeData);
+            }, 10);
+        }
+
+        function toggleNode(id) {
+            const index = state.collapsed.indexOf(id);
+            if (index === -1) {
+                state.collapsed.push(id);
+            } else {
+                state.collapsed.splice(index, 1);
+            }
+            renderTree();
+        }
+
+        // 5. TOOLTIP HANDLERS
+        function showTooltip(e, text) {
+            tooltip.innerText = text;
+            tooltip.style.opacity = 1;
+            tooltip.style.left = e.pageX + 15 + 'px';
+            tooltip.style.top = e.pageY + 15 + 'px';
+        }
+
+        function moveTooltip(e) {
+            tooltip.style.left = e.pageX + 15 + 'px';
+            tooltip.style.top = e.pageY + 15 + 'px';
+        }
+
+        function hideTooltip() {
+            tooltip.style.opacity = 0;
+        }
+
+        // Timeline Tooltips
+        document.querySelectorAll('.timeline-event').forEach(el => {
+            el.addEventListener('mouseenter', (e) => showTooltip(e, el.getAttribute('data-desc')));
+            el.addEventListener('mousemove', moveTooltip);
+            el.addEventListener('mouseleave', hideTooltip);
+        });
+
+
+        // 6. PANNING/DRAGGING LOGIC
+        // Simple click and drag to scroll the map container
+        let isDown = false;
+        let startX, startY, scrollLeft, scrollTop;
+
+        mapContainer.addEventListener('mousedown', (e) => {
+            if(e.target.closest('.node')) return; // Don't drag if clicking a node
+            isDown = true;
+            mapContainer.classList.add('active');
+            startX = e.pageX - mapContainer.offsetLeft;
+            startY = e.pageY - mapContainer.offsetTop;
+            scrollLeft = mapContainer.scrollLeft;
+            scrollTop = mapContainer.scrollTop;
+        });
+
+        mapContainer.addEventListener('mouseleave', () => { isDown = false; });
+        mapContainer.addEventListener('mouseup', () => { isDown = false; });
+        mapContainer.addEventListener('mousemove', (e) => {
+            if (!isDown) return;
+            e.preventDefault();
+            const x = e.pageX - mapContainer.offsetLeft;
+            const y = e.pageY - mapContainer.offsetTop;
+            const walkX = (x - startX) * 1.5; // Scroll speed
+            const walkY = (y - startY) * 1.5;
+            mapContainer.scrollLeft = scrollLeft - walkX;
+            mapContainer.scrollTop = scrollTop - walkY;
+        });
+
+        // Center on load
+        window.onload = () => {
+            renderTree();
+            // Scroll to center roughly
+            mapContainer.scrollTop = 150 - mapContainer.clientHeight/2;
+            mapContainer.scrollLeft = 1500 - mapContainer.clientWidth/2;
+        };
+
+    </script>
+</body>
+</html>
